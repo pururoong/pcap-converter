@@ -7,20 +7,38 @@ def parse_records_tshark(f_name):
     NAME = ['start_time', 'src_ip', 'dst_ip', 'protocol', 'length',
             'src_port', 'dst_port']
     with open(f_name, 'r') as infile:
-        for line in infile:
-            line = line.strip()
-            items = line.split()
-            rec = (float(items[1]), items[2], items[4], items[5], items[6],
-                    int(items[7]), int(items[8]))
-            records.append(rec)
+        line_num = 1
+        while True:
+            chunk = infile.readlines(8192)
+            if chunk:
+                for line in chunk:
+                    line = line.strip()
+
+                    # skip empty line
+                    if len(line) == 0:
+                        continue
+
+                    items = line.split()
+                    # skip non 5 tuple packets (arp icmp)
+                    if len(items) < 9:
+                        continue
+
+                    try:
+                        rec = (float(items[1]), items[2], items[4], items[5], items[6],
+                                int(items[7]), int(items[8]))
+
+                    except Exception as e:
+                        print("%d: parse failed" % line_num),
+                        print(e)
+                        traceback.print_exc()
+                        exit (1)
+
+                    line_num += 1
+
+                    records.append(rec)
+            else:
+                break
     return records, NAME
-
-def export_to_txt(f_name, txt_f_name):
-    cmd = """tshark -o column.format:'"No.", "%%m", "Time", "%%t", "Source", "%%s", "Destination", "%%d", "Protocol", "%%p", "len", "%%L", "srcport", "%%uS", "dstport", "%%uD"' -r %s > %s""" % (f_name, txt_f_name)
-
-    print('--> ', cmd)
-    check_call(cmd, shell=True)
-
 
 def change_to_flows(records, name, time_out):
     t_seq = name.index('start_time')
